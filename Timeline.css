@@ -1,0 +1,182 @@
+import "./Timeline.css";
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+
+function Timeline() {
+  const [tweets, setTweets] = useState([]);
+  const [text, setText] = useState("");
+  const userId = JSON.parse(
+  atob(localStorage.getItem("token")?.split(".")[1] || "{}")
+).id;
+
+  // 🔥 Fetch tweets (separate function so we can reuse)
+  const fetchTweets = async () => {
+    try {
+      const res = await axios.get("http://localhost:5000/api/tweets");
+      setTweets(res.data);
+    } catch (err) {
+      console.log("ERROR:", err.response?.data || err.message);
+    }
+  };
+
+  useEffect(() => {
+    fetchTweets();
+  }, []);
+
+  // ❤️ LIKE / UNLIKE FUNCTION
+const handleLike = async (id) => {
+  try {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      alert("Please login first ❌");
+      return;
+    }
+
+    await axios.put(
+      `http://localhost:5000/api/tweets/like/${id}`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+
+    await fetchTweets(); // 🔥 important
+
+  } catch (err) {
+    console.log("LIKE ERROR:", err.response?.data || err.message);
+    alert("Like failed ❌");
+  }
+};
+// 🗑️ DELETE FUNCTION
+const handleDelete = async (id) => {
+  try {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      alert("Please login first ❌");
+      return;
+    }
+
+    await axios.delete(
+      `http://localhost:5000/api/tweets/${id}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+
+    await fetchTweets(); // refresh
+
+  } catch (err) {
+    console.log("DELETE ERROR:", err.response?.data || err.message);
+  }
+};
+const handleFollow = async (userId) => {
+  try {
+    const token = localStorage.getItem("token");
+
+    await axios.put(
+      `http://localhost:5000/api/users/follow/${userId}`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+
+    // 🔥 THIS IS IMPORTANT
+    await fetchTweets();   // refresh UI
+
+  } catch (err) {
+    console.log(err);
+  }
+};
+
+// 🐦 CREATE TWEET FUNCTION
+const handleTweet = async () => {
+  try {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      alert("Please login first ❌");
+      return;
+    }
+
+    if (!text.trim()) {
+      alert("Write something first ❌");
+      return;
+    }
+
+    await axios.post(
+      "http://localhost:5000/api/tweets",
+      { text },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+
+    setText("");              // clear input
+    await fetchTweets();      // 🔥 refresh tweets
+
+  } catch (err) {
+    console.log("TWEET ERROR:", err.response?.data || err.message);
+  }
+};
+return (
+  <div className="timeline">
+    <h2>Timeline 📰</h2>
+
+    <div className="tweet-box">
+      <input
+        placeholder="What's happening?"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <button onClick={handleTweet}>Tweet</button>
+    </div>
+
+    {tweets.length === 0 ? (
+      <p>No tweets yet</p>
+    ) : (
+      tweets.map((tweet) => (
+        <div key={tweet._id} className="tweet-card">
+          
+          <p className="username">@{tweet.user?.username}</p>
+          <p>{tweet.text}</p>
+
+          <div className="actions">
+            <button onClick={() => handleLike(tweet._id)}>
+              ❤️ {tweet.likes?.length || 0}
+            </button>
+
+            {tweet.user && tweet.user._id !== userId && (
+              <button onClick={() => handleFollow(tweet.user._id)}>
+                {tweet.user?.followers?.some(
+                  (id) => id.toString() === userId
+                )
+                  ? "Following ✅"
+                  : "Follow 👥"}
+              </button>
+            )}
+
+            {tweet.user && tweet.user._id === userId && (
+              <button onClick={() => handleDelete(tweet._id)}>
+                🗑️ Delete
+              </button>
+            )}
+          </div>
+
+        </div>
+      ))
+    )}
+  </div>
+);
+}
+export default Timeline;
